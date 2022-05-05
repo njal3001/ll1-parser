@@ -1,6 +1,6 @@
 all: ll1.bin
 
-ll1.bin: main.c symbol.c file_util.c
+ll1.bin: main.c symbol.c file_util.c list.c
 	gcc -g -W $^ -o $@
 
 clean:

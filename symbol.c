@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <string.h>
 #include "file_util.h"
+#include <stdlib.h>
 
 void init_rule(rule *rule)
 {
@@ -84,30 +85,21 @@ bool is_nullable(const symbol *symbol)
 
 void init_symbol_table(symbol_table *table, size_t start_size)
 {
-    assert(start_size > 0);
-
-    table->symbols = malloc(start_size * sizeof(symbol*));
-    table->size = start_size;
-    table->n_symbols = 0;
+    init_list(&table->symbols, start_size, sizeof(symbol));
 }
 
-void add_symbol(symbol_table *table, symbol *symbol)
+symbol *add_new_symbol(symbol_table *table, char *name)
 {
-    if (table->n_symbols == table->size)
-    {
-        table->size *= 2;
-        table->symbols = realloc(table->symbols, table->n_symbols * sizeof(struct symbol *));
-    }
-
-    table->symbols[table->n_symbols] = symbol;
-    table->n_symbols++;
+    symbol *new_symbol = new_list_element(&table->symbols);
+    init_symbol(new_symbol, name);
+    return new_symbol;
 }
 
 symbol *find_symbol(const symbol_table *table, char *name)
 {
-    for (size_t i = 0; i < table->n_symbols; i++)
+    for (size_t i = 0; i < table->symbols.elem_count; i++)
     {
-        symbol *symbol = table->symbols[i];
+        symbol *symbol = get_list_element(&table->symbols, i);
         if (strcmp(symbol->name, name) == 0)
             return symbol;
     }
@@ -117,16 +109,13 @@ symbol *find_symbol(const symbol_table *table, char *name)
 
 void clear_symbol_table(symbol_table *table)
 {
-    for (size_t i = 0; i < table->n_symbols; i++)
+    for (size_t i = 0; i < table->symbols.elem_count; i++)
     {
-        symbol *symbol = table->symbols[i];
+        symbol *symbol = get_list_element(&table->symbols, i);
         clear_symbol(symbol);
-        free(symbol);
     }
 
-    free(table->symbols);
-    table->size = 0;
-    table->n_symbols = 0;
+    clear_list(&table->symbols);
 }
 
 bool create_symbol_table_from_file(symbol_table *table, FILE *file)
@@ -156,13 +145,20 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
             if (space_split_counter == 1)
             {
                 // Left hand side
+
+                // Check that name is not reserved
+                if (strcmp(space_split, "\"") == 0 || strcmp(space_split, "$") == 0)
+                {
+                    free(line_copy);
+                    free(input_buffer);
+                    return false;
+                }
+
                 lhs_symbol = find_symbol(table, space_split);
 
                 if (!lhs_symbol)
                 {
-                    lhs_symbol = malloc(sizeof(symbol));
-                    init_symbol(lhs_symbol, strdup(space_split));
-                    add_symbol(table, lhs_symbol);
+                    lhs_symbol = add_new_symbol(table, strdup(space_split));
                 }
 
                 lhs_symbol->type = NONTERMINAL;
@@ -181,14 +177,21 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
             else
             {
                 // Right hand side
+
+                // Check that name is not reserved
+                if (strcmp(space_split, "$") == 0)
+                {
+                    free(line_copy);
+                    free(input_buffer);
+                    return false;
+                }
+
                 symbol *rhs_symbol = find_symbol(table, space_split);
 
                 if (!rhs_symbol)
                 {
-                    rhs_symbol = malloc(sizeof(symbol));
-                    init_symbol(rhs_symbol, strdup(space_split));
+                    rhs_symbol = add_new_symbol(table, strdup(space_split));
                     rhs_symbol->type = TERMINAL;
-                    add_symbol(table, rhs_symbol);
                 }
 
                 add_production(rule, rhs_symbol);
@@ -198,10 +201,21 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
         }
 
         free(line_copy);
+
+        if (space_split_counter < 3)
+        {
+            free(input_buffer);
+            return false;
+        }
+
         newline_split = strtok_r(NULL, "\n", &save1);
     }
 
     free(input_buffer);
+
+    // Add end of file symbol
+    symbol *eof_symbol = add_new_symbol(table, strdup("$"));
+    eof_symbol->type = TERMINAL;
 
     return true;
 }

@@ -1,4 +1,5 @@
 #include "symbol.h"
+#include <stdlib.h>
 
 int main()
 {
@@ -7,13 +8,14 @@ int main()
 
     if (!create_symbol_table_from_file(&table, stdin))
     {
+        clear_symbol_table(&table);
         fputs("Error reading input\n", stderr);
         return EXIT_FAILURE;
     }
 
-    for (size_t i = 0; i < table.n_symbols; i++)
+    for (size_t i = 0; i < table.symbols.elem_count; i++)
     {
-        symbol *symbol = table.symbols[i];
+        symbol *symbol = get_list_element(&table.symbols, i);
         printf("Name: %s\n", symbol->name);
         printf("Type: %s\n", symbol->type == TERMINAL ? "TERMINAL" : "NONTERMINAL");
         printf("Rules: %ld\n\n", symbol->n_rules);

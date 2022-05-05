@@ -1,4 +1,5 @@
 #include "file_util.h"
+#include <stdlib.h>
 
 long file_size(FILE *file)
 {
@@ -12,8 +13,12 @@ long file_size(FILE *file)
 char *read_file(FILE *file)
 {
     long size = file_size(stdin);
-    char *buffer = malloc(sizeof(char) * (size + 1));
+    if (size <= 0)
+    {
+        return NULL;
+    }
 
+    char *buffer = malloc(sizeof(char) * (size + 1));
     size_t n_read = fread(buffer, sizeof(char), size, file);
     if (ferror(stdin))
     {

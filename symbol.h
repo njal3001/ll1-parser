@@ -1,9 +1,9 @@
-#ifndef SYMBOL_H 
+#ifndef SYMBOL_H
 #define SYMBOL_H
 
-#include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "list.h"
 
 typedef enum
 {
@@ -31,10 +31,7 @@ struct rule
 
 typedef struct
 {
-    symbol **symbols;
-    size_t size;
-    size_t n_symbols;
-
+    list symbols;
 } symbol_table;
 
 void init_rule(rule *rule);
@@ -48,7 +45,7 @@ bool is_empty_symbol(const symbol *symbol);
 bool is_nullable(const symbol *symbol);
 
 void init_symbol_table(symbol_table *table, size_t start_size);
-void add_symbol(symbol_table *table, symbol *symbol);
+symbol *add_new_symbol(symbol_table *table, char *name);
 symbol *find_symbol(const symbol_table *table, char *name);
 void clear_symbol_table(symbol_table *table);
 bool create_symbol_table_from_file(symbol_table *table, FILE *file);
