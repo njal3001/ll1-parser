@@ -18,7 +18,8 @@ int main()
         symbol *symbol = get_list_element(&table.symbols, i);
         printf("Name: %s\n", symbol->name);
         printf("Type: %s\n", symbol->type == TERMINAL ? "TERMINAL" : "NONTERMINAL");
-        printf("Rules: %ld\n\n", symbol->n_rules);
+        printf("Rules: %ld\n", symbol->rules.elem_count);
+        printf("Nullable: %s\n", is_nullable(symbol) ? "YES" : "NO");
     }
 
     clear_symbol_table(&table);

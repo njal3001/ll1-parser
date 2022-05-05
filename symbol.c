@@ -6,73 +6,69 @@
 
 void init_rule(rule *rule)
 {
-    rule->production = NULL;
-    rule->n_symbols = 0;
+    init_list(&rule->production, 4, sizeof(symbol*));
 }
 
-void add_production(rule *rule, const symbol *symbol)
+void add_production(rule *rule, symbol *symbol)
 {
-    rule->n_symbols++;
-    rule->production = realloc(rule->production, rule->n_symbols);
-    rule->production[rule->n_symbols - 1] = symbol;
+    struct symbol **new_elem_ref = new_list_element(&rule->production);
+    *new_elem_ref = symbol;
 }
 
 void clear_rule(rule *rule)
 {
-    free(rule->production);
-    rule->n_symbols = 0;
+    clear_list(&rule->production);
 }
 
 void init_symbol(symbol *symbol, char *name)
 {
     symbol->name = name;
     symbol->type = UNKNOWN;
-    symbol->rules = NULL;
-    symbol->n_rules = 0;
+    init_list(&symbol->rules, 0, sizeof(rule));
 }
 
 rule *add_rule(symbol *symbol)
 {
-    symbol->n_rules++;
-    symbol->rules = realloc(symbol->rules, symbol->n_rules * sizeof(rule));
-
-    rule *rule = &symbol->rules[symbol->n_rules - 1];
+    rule *rule = new_list_element(&symbol->rules);
     init_rule(rule);
-
     return rule;
 }
 
 void clear_symbol(symbol *symbol)
 {
     free(symbol->name);
-    for (size_t i = 0; i < symbol->n_rules; i++)
-        clear_rule(&symbol->rules[i]);
+    for (size_t i = 0; i < symbol->rules.elem_count; i++)
+        clear_rule(get_list_element(&symbol->rules, i));
 
-    free(symbol->rules);
+    clear_list(&symbol->rules);
 }
 
 bool is_empty_symbol(const symbol *symbol)
 {
-    return strcmp(symbol->name, "\"");
+    return strcmp(symbol->name, "\"") == 0;
 }
 
+// TODO: This breaks when handling recursive productions
 bool is_nullable(const symbol *symbol)
 {
     if (symbol->type == NONTERMINAL)
     {
-        for (size_t i = 0; i < symbol->n_rules; i++)
+        for (size_t i = 0; i < symbol->rules.elem_count; i++)
         {
-            const rule *rule = &symbol->rules[i];
-            bool nullable = true;
+            const rule *rule = get_list_element(&symbol->rules, i);
 
-            for (size_t j = 0; j < rule->n_symbols; j++)
+            bool nullable_production = true;
+            for (size_t j = 0; j < rule->production.elem_count; j++)
             {
-                const struct symbol *rhs = rule->production[j];
+                struct symbol *rhs = *(struct symbol**)get_list_element(&rule->production, j);
                 if (!is_nullable(rhs))
-                    return false;
+                    nullable_production = false;
             }
 
-            return true;
+            if (nullable_production)
+            {
+                return true;
+            }
         }
 
         return false;

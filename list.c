@@ -12,6 +12,7 @@ void init_list(list *list, size_t start_size, size_t elem_byte_size)
         list->head = malloc(start_size * elem_byte_size);
     }
 
+    list->elem_count = 0;
     list->size = start_size;
     list->elem_byte_size = elem_byte_size;
 }

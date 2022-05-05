@@ -19,14 +19,12 @@ struct symbol
 {
     char *name;
     symbol_type type;
-    rule *rules;
-    size_t n_rules;
+    list rules;
 };
 
 struct rule
 {
-    const symbol **production;
-    size_t n_symbols;
+    list production;
 };
 
 typedef struct
@@ -35,7 +33,7 @@ typedef struct
 } symbol_table;
 
 void init_rule(rule *rule);
-void add_production(rule *rule, const symbol *symbol);
+void add_production(rule *rule, symbol *symbol);
 void clear_rule(rule *rule);
 
 void init_symbol(symbol *symbol, char *name);
