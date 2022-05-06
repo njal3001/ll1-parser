@@ -20,6 +20,7 @@ struct symbol
     char *name;
     symbol_type type;
     list rules;
+    int id;
 };
 
 struct rule
@@ -30,21 +31,24 @@ struct rule
 typedef struct
 {
     list symbols;
+    int *nullable_list;
+    list *first_sets;
+    list *follow_sets;
 } symbol_table;
 
 void init_rule(rule *rule);
 void add_production(rule *rule, symbol *symbol);
 void clear_rule(rule *rule);
 
-void init_symbol(symbol *symbol, char *name);
+void init_symbol(symbol *symbol, char *name, int id);
 rule *add_rule(symbol *symbol);
 void clear_symbol(symbol *symbol);
 bool is_empty_symbol(const symbol *symbol);
-bool is_nullable(const symbol *symbol);
 
 void init_symbol_table(symbol_table *table, size_t start_size);
 symbol *add_new_symbol(symbol_table *table, char *name);
 symbol *find_symbol(const symbol_table *table, char *name);
+void compute_table_values(symbol_table *table);
 void clear_symbol_table(symbol_table *table);
 bool create_symbol_table_from_file(symbol_table *table, FILE *file);
 

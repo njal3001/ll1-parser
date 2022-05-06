@@ -13,13 +13,15 @@ int main()
         return EXIT_FAILURE;
     }
 
+    compute_table_values(&table);
+
     for (size_t i = 0; i < table.symbols.elem_count; i++)
     {
         symbol *symbol = get_list_element(&table.symbols, i);
         printf("Name: %s\n", symbol->name);
         printf("Type: %s\n", symbol->type == TERMINAL ? "TERMINAL" : "NONTERMINAL");
         printf("Rules: %ld\n", symbol->rules.elem_count);
-        printf("Nullable: %s\n", is_nullable(symbol) ? "YES" : "NO");
+        printf("Nullable: %s\n", table.nullable_list[symbol->id] ? "YES" : "NO");
     }
 
     clear_symbol_table(&table);

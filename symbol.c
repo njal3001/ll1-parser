@@ -1,12 +1,16 @@
 #include "symbol.h"
-#include <assert.h>
-#include <string.h>
 #include "file_util.h"
+#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
+
+static void compute_nullability(symbol_table *table);
+static void compute_first(const symbol_table *table);
+static void compute_follow(const symbol_table *table);
 
 void init_rule(rule *rule)
 {
-    init_list(&rule->production, 4, sizeof(symbol*));
+    init_list(&rule->production, 4, sizeof(symbol *));
 }
 
 void add_production(rule *rule, symbol *symbol)
@@ -20,10 +24,11 @@ void clear_rule(rule *rule)
     clear_list(&rule->production);
 }
 
-void init_symbol(symbol *symbol, char *name)
+void init_symbol(symbol *symbol, char *name, int id)
 {
     symbol->name = name;
     symbol->type = UNKNOWN;
+    symbol->id = id;
     init_list(&symbol->rules, 0, sizeof(rule));
 }
 
@@ -48,46 +53,19 @@ bool is_empty_symbol(const symbol *symbol)
     return strcmp(symbol->name, "\"") == 0;
 }
 
-// TODO: This breaks when handling recursive productions
-bool is_nullable(const symbol *symbol)
-{
-    if (symbol->type == NONTERMINAL)
-    {
-        for (size_t i = 0; i < symbol->rules.elem_count; i++)
-        {
-            const rule *rule = get_list_element(&symbol->rules, i);
-
-            bool nullable_production = true;
-            for (size_t j = 0; j < rule->production.elem_count; j++)
-            {
-                struct symbol *rhs = *(struct symbol**)get_list_element(&rule->production, j);
-                if (!is_nullable(rhs))
-                    nullable_production = false;
-            }
-
-            if (nullable_production)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-    else
-    {
-        return is_empty_symbol(symbol);
-    }
-}
-
 void init_symbol_table(symbol_table *table, size_t start_size)
 {
     init_list(&table->symbols, start_size, sizeof(symbol));
+    table->nullable_list = NULL;
+    table->first_sets = NULL;
+    table->follow_sets = NULL;
 }
 
 symbol *add_new_symbol(symbol_table *table, char *name)
 {
+    int id = table->symbols.elem_count;
     symbol *new_symbol = new_list_element(&table->symbols);
-    init_symbol(new_symbol, name);
+    init_symbol(new_symbol, name, id);
     return new_symbol;
 }
 
@@ -103,6 +81,69 @@ symbol *find_symbol(const symbol_table *table, char *name)
     return NULL;
 }
 
+static void compute_nullability(symbol_table *table)
+{
+    memset((void *)table->nullable_list, 0, sizeof(table->nullable_list));
+
+    // Set empty terminal as nullable
+    for (size_t sn = 0; sn < table->symbols.elem_count; sn++)
+    {
+        symbol *symbol = get_list_element(&table->symbols, sn);
+        if (is_empty_symbol(symbol))
+            table->nullable_list[symbol->id] = true;
+    }
+
+    bool changed;
+    do
+    {
+        changed = false;
+        for (size_t sn = 0; sn < table->symbols.elem_count; sn++)
+        {
+            symbol *symbol = get_list_element(&table->symbols, sn);
+            if (symbol->type == NONTERMINAL && !table->nullable_list[symbol->id])
+            {
+                for (size_t rn = 0; rn < symbol->rules.elem_count; rn++)
+                {
+                    rule *rule = get_list_element(&symbol->rules, rn);
+                    bool nullable_production = true;
+                    for (size_t pn = 0; pn < rule->production.elem_count; pn++)
+                    {
+                        struct symbol *production_elem = *(struct symbol **)get_list_element(&rule->production, pn);
+                        nullable_production &= table->nullable_list[production_elem->id];
+                    }
+
+                    if (nullable_production)
+                    {
+                        table->nullable_list[symbol->id] = true;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+    } while (changed);
+}
+
+void compute_first(const symbol_table *table)
+{
+}
+
+void compute_follow(const symbol_table *table)
+{
+}
+
+void compute_table_values(symbol_table *table)
+{
+    table->nullable_list = malloc(table->symbols.elem_count * sizeof(int));
+    table->first_sets = malloc(table->symbols.elem_count * sizeof(list));
+    table->follow_sets = malloc(table->symbols.elem_count * sizeof(list));
+
+    compute_nullability(table);
+    compute_first(table);
+    compute_follow(table);
+}
+
 void clear_symbol_table(symbol_table *table)
 {
     for (size_t i = 0; i < table->symbols.elem_count; i++)
@@ -112,6 +153,19 @@ void clear_symbol_table(symbol_table *table)
     }
 
     clear_list(&table->symbols);
+
+    if (table->nullable_list)
+        free(table->nullable_list);
+    if (table->first_sets)
+    {
+        clear_list(table->first_sets);
+        free(table->first_sets);
+    }
+    if (table->follow_sets)
+    {
+        clear_list(table->follow_sets);
+        free(table->follow_sets);
+    }
 }
 
 bool create_symbol_table_from_file(symbol_table *table, FILE *file)
