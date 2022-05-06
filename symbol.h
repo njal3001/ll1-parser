@@ -31,9 +31,9 @@ struct rule
 typedef struct
 {
     list symbols;
-    int *nullable_list;
-    list *first_sets;
-    list *follow_sets;
+    bool *nullable_list;
+    bool *first_sets;
+    bool *follow_sets;
 } symbol_table;
 
 void init_rule(rule *rule);

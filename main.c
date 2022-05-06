@@ -22,6 +22,33 @@ int main()
         printf("Type: %s\n", symbol->type == TERMINAL ? "TERMINAL" : "NONTERMINAL");
         printf("Rules: %ld\n", symbol->rules.elem_count);
         printf("Nullable: %s\n", table.nullable_list[symbol->id] ? "YES" : "NO");
+
+        if (symbol->type == NONTERMINAL)
+        {
+            size_t first_count = 0;
+            for (size_t j = 0; j < table.symbols.elem_count; j++)
+                first_count += table.first_sets[table.symbols.elem_count * i + j];
+
+            printf("First: ");
+            for (size_t j = 0; j < table.symbols.elem_count; j++)
+            {
+                if (table.first_sets[table.symbols.elem_count * i + j])
+                {
+                    struct symbol *in_first = get_list_element(&table.symbols, j);
+                    printf("%s", in_first->name);
+
+                    first_count--;
+                    if (first_count > 0)
+                    {
+                        printf(", ");
+                    }
+                }
+            }
+
+            printf("\n");
+        }
+
+        printf("\n");
     }
 
     clear_symbol_table(&table);
