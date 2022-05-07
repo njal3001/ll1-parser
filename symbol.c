@@ -189,6 +189,79 @@ void compute_first(const symbol_table *table)
 
 void compute_follow(const symbol_table *table)
 {
+    memset((void *)table->follow_sets, 0, sizeof(table->follow_sets));
+
+    bool changed;
+    do
+    {
+        changed = false;
+
+        // Iterate over all rules
+        for (size_t rsn = 0; rsn < table->symbols.elem_count; rsn++)
+        {
+            symbol *rule_symbol = get_list_element(&table->symbols, rsn);
+
+            for (size_t rn = 0; rn < rule_symbol->rules.elem_count; rn++)
+            {
+                rule *rule = get_list_element(&rule_symbol->rules, rn);
+
+                // Iterate over all production elements except the last one.
+                for (size_t pn = 0; pn < rule->production.elem_count - 1; pn++)
+                {
+                    symbol *prod_elem = *(symbol**)get_list_element(&rule->production, pn);
+                    if (prod_elem->type == NONTERMINAL)
+                    {
+                        symbol *next_prod_elem = *(symbol**)get_list_element(&rule->production, pn + 1);
+
+                        // Add all first elements of the next production element
+                        for (size_t i = 0; i < table->symbols.elem_count; i++)
+                        {
+                            size_t prod_follow_index = table->symbols.elem_count * prod_elem->id + i;
+                            size_t next_prod_first_index = table->symbols.elem_count * next_prod_elem->id + i;
+
+                            if (!table->follow_sets[prod_follow_index] && table->first_sets[next_prod_first_index])
+                            {
+                                table->follow_sets[prod_follow_index] = true;
+                                changed = true;
+                            }
+                        }
+
+                        // If the next producton element is nullable, add it's follow elements
+                        if (table->nullable_list[next_prod_elem->id])
+                        {
+                            for (size_t i = 0; i < table->symbols.elem_count; i++)
+                            {
+                                size_t prod_follow_index = table->symbols.elem_count * prod_elem->id + i;
+                                size_t next_prod_follow_index = table->symbols.elem_count * next_prod_elem->id + i;
+
+                                if (!table->follow_sets[prod_follow_index] && table->follow_sets[next_prod_follow_index])
+                                {
+                                    table->follow_sets[prod_follow_index] = true;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // The elements following the left side of the production will follow the
+                // last element in the production
+                symbol *last_prod_elem = *(symbol**)get_list_element(&rule->production, rule->production.elem_count - 1);
+                for (size_t i = 0; i < table->symbols.elem_count; i++)
+                {
+                    size_t last_prod_follow_index = table->symbols.elem_count * last_prod_elem->id + i;
+                    size_t lhs_follow_index = table->symbols.elem_count * rule_symbol->id + i;
+
+                    if (!table->follow_sets[last_prod_follow_index] && table->follow_sets[lhs_follow_index])
+                    {
+                        table->follow_sets[last_prod_follow_index] = true;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+    } while (changed);
 }
 
 void compute_table_values(symbol_table *table)
@@ -225,6 +298,9 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
         return false;
     }
 
+    symbol *start_symbol = add_new_symbol(table, strdup("S"));
+    start_symbol->type = NONTERMINAL;
+
     char *newline_split = input_buffer;
     char *save1 = NULL;
     strtok_r(newline_split, "\n", &save1);
@@ -246,7 +322,7 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
                 // Left hand side
 
                 // Check that name is not reserved
-                if (strcmp(space_split, "\"") == 0 || strcmp(space_split, "$") == 0)
+                if (strcmp(space_split, "\"") == 0 || strcmp(space_split, "$") == 0 || strcmp(space_split, "S") == 0)
                 {
                     free(line_copy);
                     free(input_buffer);
@@ -278,7 +354,7 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
                 // Right hand side
 
                 // Check that name is not reserved
-                if (strcmp(space_split, "$") == 0)
+                if (strcmp(space_split, "$") == 0 || strcmp(space_split, "S") == 0)
                 {
                     free(line_copy);
                     free(input_buffer);
@@ -315,6 +391,11 @@ bool create_symbol_table_from_file(symbol_table *table, FILE *file)
     // Add end of file symbol
     symbol *eof_symbol = add_new_symbol(table, strdup("$"));
     eof_symbol->type = TERMINAL;
+
+    rule *start_rule = add_rule(start_symbol);
+    symbol *start_rhs_symbol = get_list_element(&table->symbols, 1);
+    add_production(start_rule, start_rhs_symbol);
+    add_production(start_rule, eof_symbol);
 
     return true;
 }
