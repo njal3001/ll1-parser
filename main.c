@@ -1,4 +1,5 @@
 #include "symbol.h"
+#include "parser.h"
 #include <stdlib.h>
 
 int main()
@@ -87,6 +88,10 @@ int main()
 
         printf("\n");
     }
+
+    parser parser;
+    if (!init_parser(&parser, &table))
+        printf("Language is not LL1 parsable!\n");
 
     clear_symbol_table(&table);
 
