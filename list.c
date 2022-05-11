@@ -12,21 +12,21 @@ void init_list(list *list, size_t start_size, size_t elem_byte_size)
         list->head = malloc(start_size * elem_byte_size);
     }
 
-    list->elem_count = 0;
+    list->count = 0;
     list->size = start_size;
     list->elem_byte_size = elem_byte_size;
 }
 
 void *new_list_element(list *list)
 {
-    if (list->elem_count == list->size)
+    if (list->count == list->size)
     {
         list->size = (list->size + 1) * 2;
         list->head = realloc(list->head, list->size * list->elem_byte_size);
     }
 
-    void *element = get_list_element(list, list->elem_count);
-    list->elem_count++;
+    void *element = get_list_element(list, list->count);
+    list->count++;
     return element;
 }
 
@@ -40,6 +40,6 @@ void clear_list(list *list)
     free(list->head);
 
     list->head = NULL;
-    list->elem_count = 0;
+    list->count = 0;
     list->size = 0;
 }

@@ -1,99 +1,67 @@
-#include "symbol.h"
+#include "grammar.h"
 #include "parser.h"
 #include <stdlib.h>
 
 int main()
 {
-    symbol_table table;
-    init_symbol_table(&table, 16);
+    grammar grammar;
+    init_grammar(&grammar, 16);
 
-    if (!create_symbol_table_from_file(&table, stdin))
+    if (!create_grammar_from_file(&grammar, stdin))
     {
-        clear_symbol_table(&table);
+        clear_grammar(&grammar);
         fputs("Error reading input\n", stderr);
         return EXIT_FAILURE;
     }
 
-    compute_table_values(&table);
-
-    for (size_t i = 0; i < table.symbols.elem_count; i++)
+    parser parser;
+    init_parser(&parser, &grammar);
+    build_parse_table(&parser);
+    
+    printf("Rules:\n");
+    for (size_t i = 0; i < grammar.rules.count; i++)
     {
-        symbol *symbol = get_list_element(&table.symbols, i);
-        printf("Name: %s\n", symbol->name);
-        printf("Type: %s\n", symbol->type == TERMINAL ? "TERMINAL" : "NONTERMINAL");
-        printf("Nullable: %s\n", table.nullable_list[symbol->id] ? "YES" : "NO");
-
-        if (symbol->type == NONTERMINAL)
+        rule *rule = get_list_element(&grammar.rules, i);
+        printf("\t%s ::=", rule->lhs->name);
+        for (size_t j = 0; j < rule->rhs.count; j++)
         {
-            printf("Rules:\n");
-
-            for (size_t rn = 0; rn < symbol->rules.elem_count; rn++)
-            {
-                printf("\t%s -> ", symbol->name);
-
-                rule *rule = get_list_element(&symbol->rules, rn);
-                for (size_t pn = 0; pn < rule->production.elem_count; pn++)
-                {
-                    struct symbol *prod_elem = *(struct symbol**)get_list_element(&rule->production, pn);
-                    printf("%s ", prod_elem->name);
-                }
-
-                printf("\n");
-            }
-
-            size_t first_count = 0;
-            for (size_t j = 0; j < table.symbols.elem_count; j++)
-                first_count += table.first_sets[table.symbols.elem_count * i + j];
-
-            printf("First: ");
-            for (size_t j = 0; j < table.symbols.elem_count; j++)
-            {
-                if (table.first_sets[table.symbols.elem_count * i + j])
-                {
-                    struct symbol *in_first = get_list_element(&table.symbols, j);
-                    printf("%s", in_first->name);
-
-                    first_count--;
-                    if (first_count > 0)
-                    {
-                        printf(", ");
-                    }
-                }
-            }
-
-            printf("\n");
-
-            size_t follow_count = 0;
-            for (size_t j = 0; j < table.symbols.elem_count; j++)
-                follow_count += table.follow_sets[table.symbols.elem_count * i + j];
-
-            printf("Follow: ");
-            for (size_t j = 0; j < table.symbols.elem_count; j++)
-            {
-                if (table.follow_sets[table.symbols.elem_count * i + j])
-                {
-                    struct symbol *in_follow = get_list_element(&table.symbols, j);
-                    printf("%s", in_follow->name);
-
-                    follow_count--;
-                    if (follow_count > 0)
-                    {
-                        printf(", ");
-                    }
-                }
-            }
-
-            printf("\n");
+            symbol *rhs_symbol = *(symbol **)get_list_element(&rule->rhs, j);
+            printf(" %s", rhs_symbol->name);
         }
-
         printf("\n");
     }
 
-    parser parser;
-    if (!init_parser(&parser, &table))
-        printf("Language is not LL1 parsable!\n");
+    printf("\nSymbols:\n");
+    for (size_t i = 0; i < grammar.symbols.count; i++)
+    {
+        symbol *symbol = get_list_element(&grammar.symbols, i);
+        printf("\tName: %s\n", symbol->name);
+        printf("\t\tType: %s\n", symbol->type == TERMINAL ? "terminal" : "nonterminal");
+        printf("\t\tNullable: %d\n", parser.nullable_symbols[symbol->id]);
+        printf("\t\tFirst:");
+        for (size_t first_index = 0; first_index < grammar.symbols.count; first_index++)
+        {
+            if (parser.symbol_first_sets[symbol->id * grammar.symbols.count + first_index])
+            {
+                struct symbol *first_symbol = get_list_element(&grammar.symbols, first_index);
+                printf(" %s", first_symbol->name);
+            }
+        }
 
-    clear_symbol_table(&table);
+        printf("\n\t\tFollow:");
+        for (size_t follow_index = 0; follow_index < grammar.symbols.count; follow_index++)
+        {
+            if (parser.symbol_follow_sets[symbol->id * grammar.symbols.count + follow_index])
+            {
+                struct symbol *follow_symbol = get_list_element(&grammar.symbols, follow_index);
+                printf(" %s", follow_symbol->name);
+            }
+        }
+        printf("\n");
+    }
+
+    clear_parser(&parser);
+    clear_grammar(&grammar);
 
     return EXIT_SUCCESS;
 }

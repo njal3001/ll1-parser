@@ -2,17 +2,21 @@
 #define TRANSITION_TABLE_H
 
 #include <stdlib.h>
-#include "symbol.h"
+#include "grammar.h"
 
 typedef struct
 {
-    size_t state;
-    size_t state_index;
-    symbol_table *table;
+    grammar *grammar;
+    list stack;
+    bool *nullable_rules;
+    bool *nullable_symbols;
+    bool *rule_first_sets;
+    bool *symbol_first_sets;
+    bool *symbol_follow_sets;
 } parser;
 
-bool init_parser(parser *parser, symbol_table *table);
-bool is_parsable(symbol_table *table);
+void init_parser(parser *parser, grammar *grammar);
+void build_parse_table(parser *parser);
 void clear_parser(parser *parser);
 
 #endif

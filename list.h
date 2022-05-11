@@ -7,7 +7,7 @@ typedef struct
 {
     void *head;
     size_t elem_byte_size;
-    size_t elem_count;
+    size_t count;
     size_t size;
 } list;
 
