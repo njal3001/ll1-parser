@@ -7,8 +7,6 @@ static void compute_follow(parser *parser);
 
 static bool or_all(bool *src, bool *dst, size_t n);
 
-static bool intersection(bool *val, size_t n);
-
 void init_parser(parser *parser, grammar *grammar)
 {
     parser->grammar = grammar;
@@ -26,6 +24,9 @@ void init_parser(parser *parser, grammar *grammar)
 
     parser->symbol_follow_sets = malloc(grammar->symbols.count * grammar->symbols.count * sizeof(bool));
     memset((void *)parser->symbol_follow_sets, 0, sizeof(parser->symbol_follow_sets));
+
+    parser->table = malloc(grammar->symbols.count * grammar->symbols.count * grammar->rules.count * sizeof(bool));
+    memset((void *)parser->table, 0, sizeof(parser->table));
 }
 
 void compute_nullable(parser *parser)
@@ -179,6 +180,66 @@ void build_parse_table(parser *parser)
     compute_nullable(parser);
     compute_first(parser);
     compute_follow(parser);
+
+    size_t n_symbols = parser->grammar->symbols.count;
+    size_t n_rules = parser->grammar->rules.count;
+
+    for (size_t rule_index = 0; rule_index < n_rules; rule_index++)
+    {
+        rule *rule = get_list_element(&parser->grammar->rules, rule_index);
+        for (size_t symbol_index = 0; symbol_index < n_symbols; symbol_index++)
+        {
+            if (parser->rule_first_sets[rule->id * n_symbols + symbol_index])
+            {
+                parser->table[rule->lhs->id * n_symbols * n_rules + symbol_index * n_rules + rule->id] = true;
+            }
+        }
+
+        if (parser->nullable_rules[rule->id])
+        {
+            for (size_t symbol_index = 0; symbol_index < n_symbols; symbol_index++)
+            {
+                if (parser->symbol_follow_sets[rule->lhs->id * n_symbols])
+                {
+                    parser->table[rule->lhs->id * n_symbols * n_rules + symbol_index * n_rules + rule->id] = true;
+                }
+            }
+        }
+    }
+}
+
+bool is_valid_grammar(parser *parser)
+{
+    size_t n_symbols = parser->grammar->symbols.count;
+    size_t n_rules = parser->grammar->rules.count;
+    for (size_t row = 0; row < n_symbols; row++)
+    {
+        symbol *row_symbol = get_list_element(&parser->grammar->symbols, row);
+        if (row_symbol->type == TERMINAL)
+            continue;
+
+        for (size_t col = 0; col < n_symbols; col++)
+        {
+            symbol *col_symbol = get_list_element(&parser->grammar->symbols, col);
+            if (col_symbol->type == NONTERMINAL)
+                continue;
+
+            bool has_entry = false;
+            for (size_t rule_index = 0; rule_index < n_rules; rule_index++)
+            {
+
+                if (parser->table[row * n_symbols * n_rules + col * n_rules + rule_index])
+                {
+                    if (has_entry)
+                        return false;
+
+                    has_entry = true;
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 void clear_parser(parser *parser)
@@ -190,6 +251,7 @@ void clear_parser(parser *parser)
     free(parser->rule_first_sets);
     free(parser->symbol_first_sets);
     free(parser->symbol_follow_sets);
+    free(parser->table);
 }
 
 bool or_all(bool *src, bool *dst, size_t n)

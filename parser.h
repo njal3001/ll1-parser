@@ -13,10 +13,12 @@ typedef struct
     bool *rule_first_sets;
     bool *symbol_first_sets;
     bool *symbol_follow_sets;
+    bool *table;
 } parser;
 
 void init_parser(parser *parser, grammar *grammar);
 void build_parse_table(parser *parser);
+bool is_valid_grammar(parser *parser);
 void clear_parser(parser *parser);
 
 #endif

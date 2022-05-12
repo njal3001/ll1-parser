@@ -60,6 +60,9 @@ int main()
         printf("\n");
     }
 
+    if (!is_valid_grammar(&parser))
+        printf("Grammar is not LL(1)\n");
+
     clear_parser(&parser);
     clear_grammar(&grammar);
 
