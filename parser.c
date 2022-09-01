@@ -5,28 +5,23 @@ static void compute_nullable(parser *parser);
 static void compute_first(parser *parser);
 static void compute_follow(parser *parser);
 
-static bool or_all(bool *src, bool *dst, size_t n);
+static bool or_all(const bool *src, bool *dst, size_t n);
+static bool *create_bool_arr(size_t size);
 
-void init_parser(parser *parser, grammar *grammar)
+static rule *get_matching_rule(const parser *parser, const symbol *symbol, const char *token);
+
+void init_parser(parser *parser, const grammar *grammar)
 {
     parser->grammar = grammar;
-    init_list(&parser->stack, 8, sizeof(symbol *));
+    parser->nullable_rules = create_bool_arr(grammar->rules.count);
+    parser->nullable_symbols = create_bool_arr(grammar->symbols.count);
 
-    parser->nullable_rules = malloc(grammar->rules.count * sizeof(bool));
-    parser->nullable_symbols = malloc(grammar->symbols.count * sizeof(bool));
-    memset((void *)parser->nullable_rules, 0, sizeof(parser->nullable_rules));
-    memset((void *)parser->nullable_symbols, 0, sizeof(parser->nullable_symbols));
+    parser->rule_first_sets = create_bool_arr(grammar->rules.count * grammar->symbols.count);
+    parser->symbol_first_sets = create_bool_arr(grammar->symbols.count * grammar->symbols.count);
+    parser->symbol_follow_sets = create_bool_arr(grammar->symbols.count * grammar->symbols.count);
 
-    parser->rule_first_sets = malloc(grammar->rules.count * grammar->symbols.count * sizeof(bool));
-    parser->symbol_first_sets = malloc(grammar->symbols.count * grammar->symbols.count * sizeof(bool));
-    memset((void *)parser->rule_first_sets, 0, sizeof(parser->rule_first_sets));
-    memset((void *)parser->symbol_first_sets, 0, sizeof(parser->symbol_first_sets));
-
-    parser->symbol_follow_sets = malloc(grammar->symbols.count * grammar->symbols.count * sizeof(bool));
-    memset((void *)parser->symbol_follow_sets, 0, sizeof(parser->symbol_follow_sets));
-
-    parser->table = malloc(grammar->symbols.count * grammar->symbols.count * grammar->rules.count * sizeof(bool));
-    memset((void *)parser->table, 0, sizeof(parser->table));
+    parser->table = create_bool_arr(
+            grammar->symbols.count * grammar->symbols.count * grammar->rules.count);
 }
 
 void compute_nullable(parser *parser)
@@ -199,7 +194,7 @@ void build_parse_table(parser *parser)
         {
             for (size_t symbol_index = 0; symbol_index < n_symbols; symbol_index++)
             {
-                if (parser->symbol_follow_sets[rule->lhs->id * n_symbols])
+                if (parser->symbol_follow_sets[rule->lhs->id * n_symbols + symbol_index])
                 {
                     parser->table[rule->lhs->id * n_symbols * n_rules + symbol_index * n_rules + rule->id] = true;
                 }
@@ -208,7 +203,7 @@ void build_parse_table(parser *parser)
     }
 }
 
-bool is_valid_grammar(parser *parser)
+bool is_valid_grammar(const parser *parser)
 {
     size_t n_symbols = parser->grammar->symbols.count;
     size_t n_rules = parser->grammar->rules.count;
@@ -242,10 +237,86 @@ bool is_valid_grammar(parser *parser)
     return true;
 }
 
+bool is_valid_string(const parser *parser, const char *str)
+{
+    list stack;
+    init_list(&stack, 16, sizeof(symbol*));
+
+    // Add starting symbol to stack
+    symbol **start_sym = new_list_element(&stack);
+    *start_sym = get_list_element(&parser->grammar->symbols, 0);
+
+    char *token = strdup(str);
+    char *token_ref = token;
+    strtok(token, " ");
+
+    while (token || stack.count > 0)
+    {
+        symbol *sym = *(symbol**)get_list_element(&stack, 0);
+        if (sym->type == TERMINAL)
+        {
+            if (!is_empty_symbol(sym) && !is_end_symbol(sym))
+            {
+                if (!token || strcmp(sym->name, token) != 0)
+                {
+                    break;
+                }
+
+                token = strtok(NULL, " ");
+            }
+
+            pop_front(&stack);
+        }
+        else
+        {
+            rule *rule;
+            if (token)
+                rule = get_matching_rule(parser, sym, token);
+            else
+                rule = get_matching_rule(parser, sym, "$");
+
+            if (!rule) break;
+
+            pop_front(&stack);
+            for (int rhs_index = rule->rhs.count - 1; rhs_index >= 0; rhs_index--)
+            {
+                symbol **new_sym = push_front(&stack);
+                *new_sym = *(symbol**)get_list_element(&rule->rhs, rhs_index);
+            }
+        }
+    }
+
+    bool success = !token && stack.count == 0;
+
+    free(token_ref);
+    clear_list(&stack);
+
+    return success;
+}
+
+rule *get_matching_rule(const parser *parser, const symbol *symbol, const char *token)
+{
+    size_t n_symbols = parser->grammar->symbols.count;
+    size_t n_rules = parser->grammar->rules.count;
+
+    const struct symbol *token_symbol = find_symbol(parser->grammar, token);
+    if (token_symbol)
+    {
+        for (size_t rule_index = 0; rule_index < n_rules; rule_index++)
+        {
+            if (parser->table[symbol->id * n_symbols * n_rules +
+                    token_symbol->id * n_rules + rule_index])
+            {
+                return get_list_element(&parser->grammar->rules, rule_index);
+            }
+        }
+    }
+
+    return NULL;
+}
+
 void clear_parser(parser *parser)
 {
-    clear_list(&parser->stack);
-
     free(parser->nullable_rules);
     free(parser->nullable_symbols);
     free(parser->rule_first_sets);
@@ -254,7 +325,7 @@ void clear_parser(parser *parser)
     free(parser->table);
 }
 
-bool or_all(bool *src, bool *dst, size_t n)
+bool or_all(const bool *src, bool *dst, size_t n)
 {
     bool changed = false;
     for (size_t i = 0; i < n; i++)
@@ -267,4 +338,100 @@ bool or_all(bool *src, bool *dst, size_t n)
     }
 
     return changed;
+}
+
+bool *create_bool_arr(size_t size)
+{
+    bool *arr = malloc(size * sizeof(bool));
+    memset((void *)arr, 0, size * sizeof(bool));
+    return arr;
+}
+
+void print_rule(const rule *rule)
+{
+    printf("\t%s ::=", rule->lhs->name);
+    for (size_t j = 0; j < rule->rhs.count; j++)
+    {
+        symbol *rhs_symbol = *(symbol **)get_list_element(&rule->rhs, j);
+        printf(" %s", rhs_symbol->name);
+    }
+}
+
+void print_rules(const parser *parser)
+{
+    const grammar *grammar = parser->grammar;
+    printf("Rules:\n");
+    for (size_t i = 0; i < grammar->rules.count; i++)
+    {
+        rule *rule = get_list_element(&grammar->rules, i);
+        print_rule(rule);
+        putc('\n', stdout);
+    }
+}
+
+void print_symbols(const parser *parser)
+{
+    const grammar *grammar = parser->grammar;
+    printf("Symbols:\n");
+    for (size_t i = 0; i < grammar->symbols.count; i++)
+    {
+        symbol *symbol = get_list_element(&grammar->symbols, i);
+        printf("\tName: %s\n", symbol->name);
+        printf("\t\tType: %s\n", symbol->type == TERMINAL ? "terminal" : "nonterminal");
+        printf("\t\tNullable: %d\n", parser->nullable_symbols[symbol->id]);
+        printf("\t\tFirst:");
+        for (size_t first_index = 0; first_index < grammar->symbols.count; first_index++)
+        {
+            if (parser->symbol_first_sets[symbol->id * grammar->symbols.count + first_index])
+            {
+                struct symbol *first_symbol = get_list_element(&grammar->symbols, first_index);
+                printf(" %s", first_symbol->name);
+            }
+        }
+
+        printf("\n\t\tFollow:");
+        for (size_t follow_index = 0; follow_index < grammar->symbols.count; follow_index++)
+        {
+            if (parser->symbol_follow_sets[symbol->id * grammar->symbols.count + follow_index])
+            {
+                struct symbol *follow_symbol = get_list_element(&grammar->symbols, follow_index);
+                printf(" %s", follow_symbol->name);
+            }
+        }
+        putc('\n', stdout);
+    }
+
+}
+
+void print_table(const parser *parser)
+{
+    size_t n_symbols = parser->grammar->symbols.count;
+    size_t n_rules = parser->grammar->rules.count;
+
+    printf("Table:\n");
+
+    for (size_t row = 0; row < n_symbols; row++)
+    {
+        const symbol *row_symbol = get_list_element(&parser->grammar->symbols, row);
+        if (row_symbol->type != NONTERMINAL) continue;
+
+        printf("\t%s:\n", row_symbol->name);
+        for (size_t col = 0; col < n_symbols; col++)
+        {
+            const symbol *col_symbol = get_list_element(&parser->grammar->symbols, col);
+            if (col_symbol->type != TERMINAL) continue;
+
+            printf("\t\t%s: ", col_symbol->name);
+            for (size_t rule_index = 0; rule_index < n_rules; rule_index++)
+            {
+                if (parser->table[row * n_symbols * n_rules + col * n_rules + rule_index])
+                {
+                    print_rule(get_list_element(&parser->grammar->rules, rule_index));
+                    putc(' ', stdout);
+                }
+            }
+
+            putc('\n', stdout);
+        }
+    }
 }

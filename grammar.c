@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool is_reserved_symbol(const char *sym_name);
+
 void init_rule(rule *rule, symbol *lhs, int id)
 {
     rule->lhs = lhs;
@@ -38,6 +40,11 @@ bool is_empty_symbol(const symbol *symbol)
     return strcmp(symbol->name, "\"") == 0;
 }
 
+bool is_end_symbol(const symbol *symbol)
+{
+    return strcmp(symbol->name, "$") == 0;
+}
+
 void init_grammar(grammar *grammar, size_t start_size)
 {
     init_list(&grammar->symbols, start_size, sizeof(symbol));
@@ -60,7 +67,7 @@ rule *add_new_rule(grammar *grammar, symbol *lhs)
     return new_rule;
 }
 
-symbol *find_symbol(const grammar *grammar, char *name)
+symbol *find_symbol(const grammar *grammar, const char *name)
 {
     for (size_t i = 0; i < grammar->symbols.count; i++)
     {
@@ -93,11 +100,16 @@ void clear_grammar(grammar *grammar)
 
 bool create_grammar_from_file(grammar *grammar, FILE *file)
 {
-    char *input_buffer = read_file(stdin);
+    char *input_buffer = read_file(file);
     if (!input_buffer)
     {
         return false;
     }
+
+    // Add artifical starting symbol
+   symbol *artificial_start_symbol = add_new_symbol(grammar, strdup("S"));
+
+   bool has_start_symbol = false;
 
     char *newline_split = input_buffer;
     char *save1 = NULL;
@@ -120,7 +132,7 @@ bool create_grammar_from_file(grammar *grammar, FILE *file)
                 // Left hand side
 
                 // Check that name is not reserved
-                if (strcmp(space_split, "\"") == 0)
+                if (is_reserved_symbol(space_split))
                 {
                     free(line_copy);
                     free(input_buffer);
@@ -177,5 +189,21 @@ bool create_grammar_from_file(grammar *grammar, FILE *file)
 
     free(input_buffer);
 
+    // Add end of input symbol and starting rule
+    symbol *end_symbol = add_new_symbol(grammar, strdup("$"));
+    end_symbol->type = TERMINAL;
+
+    rule *start_rule = add_new_rule(grammar, artificial_start_symbol);
+    add_production(start_rule, get_list_element(&grammar->symbols, 1));
+    add_production(start_rule, end_symbol);
+
     return true;
+}
+
+bool is_reserved_symbol(const char *sym_name)
+{
+    return
+        strcmp(sym_name, "S") == 0 ||
+        strcmp(sym_name, "\"") == 0 ||
+        strcmp(sym_name, "$") == 0;
 }

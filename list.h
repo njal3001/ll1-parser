@@ -14,6 +14,8 @@ typedef struct
 void init_list(list *list, size_t start_size, size_t elem_byte_size);
 void *new_list_element(list *list);
 void *get_list_element(const list *list, size_t index);
+void *push_front(list *list);
+void pop_front(list *list);
 void clear_list(list *list);
 
 #endif

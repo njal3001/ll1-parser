@@ -1,5 +1,7 @@
 #include "file_util.h"
 #include <stdlib.h>
+#include <errno.h>
+#include <string.h>
 
 long file_size(FILE *file)
 {
@@ -12,7 +14,7 @@ long file_size(FILE *file)
 
 char *read_file(FILE *file)
 {
-    long size = file_size(stdin);
+    long size = file_size(file);
     if (size <= 0)
     {
         return NULL;

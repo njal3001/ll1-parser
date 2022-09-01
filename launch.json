@@ -1,0 +1,13 @@
+{
+    "configurations": [
+        {
+            "name": "Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": true,
+            "program": "${workspaceFolder}/ll1.bin",
+            "args": ["grammars/grammar1.txt"]
+        }
+    ]
+}

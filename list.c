@@ -35,6 +35,20 @@ void *get_list_element(const list *list, size_t index)
     return ((char*)list->head) + index * list->elem_byte_size;
 }
 
+void *push_front(list *list)
+{
+    new_list_element(list);
+    memcpy((char*)list->head + list->elem_byte_size, list->head, (list->count - 1) * list->elem_byte_size);
+
+    return get_list_element(list, 0);
+}
+
+void pop_front(list *list)
+{
+    list->count--;
+    memcpy(list->head, (char*)list->head + list->elem_byte_size, list->count * list->elem_byte_size);
+}
+
 void clear_list(list *list)
 {
     free(list->head);

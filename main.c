@@ -1,67 +1,77 @@
 #include "grammar.h"
 #include "parser.h"
 #include <stdlib.h>
+#include <string.h>
 
-int main()
+void read_input(char *buffer, size_t n)
 {
+    memset(buffer, 0, n);
+    fgets(buffer, n, stdin);
+}
+
+int main(int argc, char **argv)
+{
+    if (argc != 2)
+    {
+        fputs("ERROR: wrong number of arguments\n", stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    FILE *grammar_file = fopen(argv[1], "r");
+    if (!grammar_file)
+    {
+        fputs("ERROR: could not open file\n", stderr);
+        exit(EXIT_FAILURE);
+    }
+
     grammar grammar;
     init_grammar(&grammar, 16);
 
-    if (!create_grammar_from_file(&grammar, stdin))
+    if (!create_grammar_from_file(&grammar, grammar_file))
     {
+        fclose(grammar_file);
         clear_grammar(&grammar);
         fputs("Error reading input\n", stderr);
         return EXIT_FAILURE;
     }
 
+    fclose(grammar_file);
+
     parser parser;
     init_parser(&parser, &grammar);
     build_parse_table(&parser);
-    
-    printf("Rules:\n");
-    for (size_t i = 0; i < grammar.rules.count; i++)
+
+    print_rules(&parser);
+    putc('\n', stdout);
+    print_symbols(&parser);
+    putc('\n', stdout);
+    print_table(&parser);
+    putc('\n', stdout);
+
+    if (is_valid_grammar(&parser))
     {
-        rule *rule = get_list_element(&grammar.rules, i);
-        printf("\t%s ::=", rule->lhs->name);
-        for (size_t j = 0; j < rule->rhs.count; j++)
+        char input[1024];
+        while (1)
         {
-            symbol *rhs_symbol = *(symbol **)get_list_element(&rule->rhs, j);
-            printf(" %s", rhs_symbol->name);
-        }
-        printf("\n");
-    }
+            printf("Your string: ");
+            fflush(stdout);
+            read_input(input, sizeof(input));
 
-    printf("\nSymbols:\n");
-    for (size_t i = 0; i < grammar.symbols.count; i++)
+            if (input[0] == '\0') break;
+
+            // Remove trailing newline
+            input[strcspn(input, "\n")] = 0;
+
+            if (is_valid_string(&parser, input))
+                printf("Valid string\n");
+            else
+                printf("Invalid string\n");
+        };
+    }
+    else
     {
-        symbol *symbol = get_list_element(&grammar.symbols, i);
-        printf("\tName: %s\n", symbol->name);
-        printf("\t\tType: %s\n", symbol->type == TERMINAL ? "terminal" : "nonterminal");
-        printf("\t\tNullable: %d\n", parser.nullable_symbols[symbol->id]);
-        printf("\t\tFirst:");
-        for (size_t first_index = 0; first_index < grammar.symbols.count; first_index++)
-        {
-            if (parser.symbol_first_sets[symbol->id * grammar.symbols.count + first_index])
-            {
-                struct symbol *first_symbol = get_list_element(&grammar.symbols, first_index);
-                printf(" %s", first_symbol->name);
-            }
-        }
-
-        printf("\n\t\tFollow:");
-        for (size_t follow_index = 0; follow_index < grammar.symbols.count; follow_index++)
-        {
-            if (parser.symbol_follow_sets[symbol->id * grammar.symbols.count + follow_index])
-            {
-                struct symbol *follow_symbol = get_list_element(&grammar.symbols, follow_index);
-                printf(" %s", follow_symbol->name);
-            }
-        }
-        printf("\n");
-    }
-
-    if (!is_valid_grammar(&parser))
         printf("Grammar is not LL(1)\n");
+    }
 
     clear_parser(&parser);
     clear_grammar(&grammar);
